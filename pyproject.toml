@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aria2"
-version = "1.0.0"
+version = "1.1.0"
 description = "A lightweight resumable download manager with multi-segment parallel downloading"
 readme = "README.md"
 requires-python = ">=3.9"

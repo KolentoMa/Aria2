@@ -1,35 +1,26 @@
 @echo off
-cd /d D:\Project\Aria2
+setlocal
+chcp 65001 >nul 2>&1
+cd /d "%~dp0"
 
-set URL=https://huggingface.co/HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive/resolve/main/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q5_K_P.gguf?download=true
+set "MODEL_DIR=E:\ModeLs"
+set "MODEL=Qwen3.6-27B-Q3_K_M.gguf"
+set "URL=https://huggingface.co/DhruvalLabs/Qwen3.6-27B-GGUF/resolve/main/Qwen3.6-27B-Q3_K_M.gguf?download=true"
+set "SHA256=06e2b050c41a741338824e4b9b0b94a49795832fba1d0daeca492033a42d7bf8"
 
-echo ============================================
-echo  Qwen3.6 35B GGUF Download Script
-echo ============================================
-echo.
-echo   URL: %URL%
-echo   Save: %OUTPUT%
-echo   Threads: 8
-echo   Retries: 30
-echo   Size: ~30 GB
-echo.
-echo   Ctrl+C to pause, rerun to resume
-echo ============================================
+if not exist "%MODEL_DIR%" mkdir "%MODEL_DIR%"
+echo Downloading %MODEL% to %MODEL_DIR%
+echo Expected size: 13,500,735,744 bytes
+echo The SHA-256 digest will be checked after download.
 echo.
 
-python -m aria2 -s 8 -r 30 -o "%OUTPUT%" "%URL%"
-
-if %ERRORLEVEL% EQU 0 (
+python -m aria2 -s 8 -r 10 --sha256 "%SHA256%" -o "%MODEL_DIR%\%MODEL%" "%URL%"
+if errorlevel 1 (
     echo.
-    echo ============================================
-    echo   Download complete!
-    echo ============================================
-) else (
-    echo.
-    echo ============================================
-    echo   Interrupted, progress saved.
-    echo   Run this script again to resume.
-    echo ============================================
+    echo Download incomplete or verification failed. Run this script again to resume.
+    exit /b 1
 )
 
-pause
+echo.
+echo Download and SHA-256 verification completed successfully.
+exit /b 0

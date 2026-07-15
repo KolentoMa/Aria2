@@ -6,6 +6,12 @@ import sys
 from urllib.parse import unquote, urlparse
 
 
+DEFAULT_MODEL_DIR = os.environ.get(
+    "ARIA2_MODEL_DIR",
+    r"E:\ModeLs" if sys.platform == "win32" else os.getcwd(),
+)
+
+
 def _fix_encoding() -> None:
     """Ensure stdout uses UTF-8 on Windows (avoids UnicodeEncodeError)."""
     if sys.platform == "win32":
@@ -24,6 +30,11 @@ def extract_filename(url: str) -> str:
         # Replace dots/special chars in hostname for a cleaner default
         filename = f"{host.replace('.', '_')}.downloaded"
     return filename
+
+
+def default_output_path(url: str) -> str:
+    """Return the configured model directory plus the URL filename."""
+    return os.path.join(DEFAULT_MODEL_DIR, extract_filename(url))
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -45,7 +56,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "-o", "--output",
         default=None,
-        help="Output filename (default: extracted from URL)",
+        help=f"Output path (default directory: {DEFAULT_MODEL_DIR})",
     )
     parser.add_argument(
         "-s", "--segments",
@@ -71,6 +82,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=10,
         help="Max HTTP redirects to follow (default: 10)",
     )
+    parser.add_argument(
+        "--sha256",
+        default=None,
+        metavar="HEX",
+        help="Expected SHA-256 digest; fail if the completed file differs",
+    )
 
     if argv is None:
         argv = sys.argv[1:]
@@ -86,6 +103,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     if args.retries < 0:
         parser.error("--retries must be >= 0")
 
+    if args.max_redirects < 0:
+        parser.error("--max-redirects must be >= 0")
+
+    if args.sha256 is not None:
+        value = args.sha256.strip().lower()
+        if len(value) != 64 or any(c not in "0123456789abcdef" for c in value):
+            parser.error("--sha256 must be exactly 64 hexadecimal characters")
+        args.sha256 = value
+
     return args
 
 
@@ -95,7 +121,12 @@ def main() -> None:
     args = parse_args()
 
     # Determine output filename
-    output = args.output or extract_filename(args.url)
+    if args.output:
+        output = args.output
+        if not os.path.dirname(output):
+            output = os.path.join(DEFAULT_MODEL_DIR, output)
+    else:
+        output = default_output_path(args.url)
 
     # Avoid importing core until we're actually running
     from .core import DownloadManager
@@ -107,6 +138,7 @@ def main() -> None:
         max_retries=args.retries,
         max_redirects=args.max_redirects,
         resume=not args.no_resume,
+        sha256=args.sha256,
     )
 
     try:

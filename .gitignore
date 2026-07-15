@@ -3,10 +3,17 @@ __pycache__/
 *.pyc
 *.pyo
 *.egg-info/
+build/
+dist/
+.coverage
+.pytest_cache/
 
 # Downloaded binaries
 aria2c.zip
 aria2c.exe
+*.aria2.json
+*.aria2.json.tmp
+*.gguf
 
 # OS
 Thumbs.db

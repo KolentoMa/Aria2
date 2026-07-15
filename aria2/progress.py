@@ -93,6 +93,10 @@ def _supports_ansi() -> bool:
     if _ANSI_AVAILABLE is not None:
         return _ANSI_AVAILABLE
 
+    if not getattr(sys.stdout, "isatty", lambda: False)():
+        _ANSI_AVAILABLE = False
+        return False
+
     if sys.platform == "win32":
         # Try to enable ANSI on Windows 10+
         _ANSI_AVAILABLE = _enable_windows_ansi()
@@ -197,6 +201,8 @@ class ProgressDisplay:
         if _supports_ansi():
             sys.stdout.write(_hide_cursor())
             sys.stdout.flush()
+        else:
+            self._refresh_interval = max(self._refresh_interval, 5.0)
         self._thread = threading.Thread(target=self._render_loop, daemon=True)
         self._thread.start()
 
@@ -205,9 +211,11 @@ class ProgressDisplay:
         self._done = True
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=1.0)
+        self._render()
         if _supports_ansi():
             sys.stdout.write(_show_cursor())
-            sys.stdout.flush()
+        sys.stdout.write("\n")
+        sys.stdout.flush()
 
     def update_segment(self, index: int, downloaded: int) -> None:
         """Update the downloaded byte count for a segment.
@@ -289,6 +297,29 @@ class ProgressDisplay:
         # Segment bars
         with self._lock:
             seg_copy = list(self._segments)
-        seg_size = self._total_size // max(self._segment_count, 1)
+        base, remainder = divmod(self._total_size, max(self._segment_count, 1))
         DISPLAY_LIMIT = 8
-       
+        for index, downloaded in enumerate(seg_copy[:DISPLAY_LIMIT]):
+            segment_size = base + (1 if index < remainder else 0)
+            ratio = min(max(downloaded / segment_size, 0.0), 1.0) if segment_size else 1.0
+            lines.append(
+                f" segment {index + 1:02d} {_make_bar(ratio)} {_percentage(ratio)} "
+                f"{_format_size(downloaded)}/{_format_size(segment_size)}"
+            )
+        if len(seg_copy) > DISPLAY_LIMIT:
+            lines.append(f" ... {len(seg_copy) - DISPLAY_LIMIT} more segments")
+
+        if not _supports_ansi():
+            # Redirected output and older terminals get a compact single-line
+            # status instead of thousands of scrolling progress-bar frames.
+            sys.stdout.write("\r" + header[: max(term_width - 1, 1)].ljust(max(term_width - 1, 1)))
+            sys.stdout.flush()
+            return
+
+        if self._num_lines:
+            sys.stdout.write(_cursor_up(self._num_lines))
+        for line in lines:
+            rendered = line[: max(term_width - 1, 1)]
+            sys.stdout.write(_clear_line() + rendered + "\n")
+        self._num_lines = len(lines)
+        sys.stdout.flush()

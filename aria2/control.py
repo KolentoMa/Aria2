@@ -94,7 +94,8 @@ class ControlFile:
             "output_path": state.output_path,
             "total_size": state.total_size,
             "segment_count": state.segment_count,
-            "segments": state.segments,
+            # Snapshot mutable per-thread counters before serializing them.
+            "segments": [dict(segment) for segment in state.segments],
             "etag": state.etag,
             "created_at": state.created_at,
             "updated_at": state.updated_at,
